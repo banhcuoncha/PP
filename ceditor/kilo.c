@@ -1,13 +1,18 @@
+/*** includes ***/
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
-
+/*** defines ***/
 struct termios orig_termios;
-
+#define CTRL_KEY(k) ((k) & 0x1f)
+/*** terminal ***/
 void die(const char* s) {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
     perror(s);
     exit(1);
 }
@@ -43,18 +48,48 @@ void enableRawMode() {
         die("tcsetattr");
     }
 }
+char editorReadKey() {
+    int nread;
+    char c;
+    while ((nread  = read(STDIN_FILENO, &c, 1) != 1)) {
+        if (nread == -1 && errno != EAGAIN) { die("read"); }
+    }
+    return c;
+}
+/*** output ***/
+void editorDrawRows() {
+    int y;
+    for (y = 0; y < 24; y++) {
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
+/*** input ***/
+void editorRefreshScreen() {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
+    editorDrawRows();
+    // Reposisiton cursor back up to the top left corner
+    write(STDOUT_FILENO, "\x1b[H", 3);
+}
+void editorProcessKeyPress() {
+    char c = editorReadKey();
+
+    switch (c) {
+        case CTRL_KEY('w'):
+            write(STDOUT_FILENO, "\x1b[2J", 4);
+            write(STDOUT_FILENO, "\x1b[H", 3);
+            exit(0);
+            break;
+    }
+}
+/** init **/
 int main() {
     enableRawMode();
     
     while (1) {
-        char c = '\0';
-        if (read(STDIN_FILENO, &c, 1) == -1) { die("read"); };
-        if (iscntrl(c)) {
-            printf("%d\r\n", c);
-        } else {
-            printf("%d ('%c')\r\n", c, c);
-        }
-        if (c == 'q') { break; }
+        editorRefreshScreen();
+        editorProcessKeyPress();
     }
     return 0;
 }
