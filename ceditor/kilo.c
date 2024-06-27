@@ -114,24 +114,33 @@ struct abuf {
  void abFree(struct abuf *ab) {
     free(ab->b);
  }
-                                    /*** output ***/
-void editorDrawRows() {
+                                /*** output ***/
+void editorDrawRows(struct abuf *ab) {
     int y;
     for (y = 0; y < E.screen_rows; y++) {
-        write(STDOUT_FILENO, "~", 1);
+        abAppend(ab, "~", 1);
+        
         if (y < E.screen_rows - 1) {
-            write(STDOUT_FILENO, "\r\n", 2);
+            abAppend(ab, "\r\n", 2);
         }
     }
 }
                                     /*** input ***/
 void editorRefreshScreen() {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    struct abuf ab = ABUF_INIT;
 
-    editorDrawRows();
+
+    abAppend(&ab, "\x1b[?25l", 6);
+    abAppend(&ab, "\x1b[2J", 4);
+    abAppend(&ab, "\x1b[H", 3);
+
+    editorDrawRows(&ab);
     // Reposisiton cursor back up to the top left corner
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    abAppend(&ab, "\x1b[H", 3);
+    abAppend(&ab, "\x1b[?25h", 6);
+    
+    write(STDOUT_FILENO, ab.b, ab.len);
+    abFree(&ab);
 }
 void editorProcessKeyPress() {
     char c = editorReadKey();
